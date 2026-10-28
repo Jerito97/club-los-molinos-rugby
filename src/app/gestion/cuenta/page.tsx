@@ -5,6 +5,8 @@ import { Tarjeta } from "@/componentes/Tarjeta";
 import { HORAS_SESION } from "@/lib/sesion";
 import { ROL } from "@/dominio/tipos";
 import { usuarioDePagina } from "@/servicios/usuarios";
+import { puede } from "@/dominio/permisos";
+import { BotonReiniciar } from "./BotonReiniciar";
 import { BotonSalir } from "./BotonSalir";
 
 export const metadata: Metadata = { title: "Cuenta" };
@@ -30,6 +32,14 @@ export default async function Cuenta() {
           Ir a la app
         </Link>
         <BotonSalir />
+        {puede(actor, "reiniciar_datos") ? (
+          <Tarjeta className="space-y-2 p-4">
+            <p className="text-sm text-negro/60">
+              Vuelve todos los datos al estado inicial: partidos, eventos, auditoría, usuarios y notificaciones.
+            </p>
+            <BotonReiniciar />
+          </Tarjeta>
+        ) : null}
       </div>
     </>
   );

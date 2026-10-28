@@ -44,3 +44,15 @@ export function duracion(segundos: number): string {
   const resto = s % 60;
   return resto ? `${m} min ${resto} s` : `${m} min`;
 }
+
+/** Duración compacta "1:25" (minutos:segundos). */
+export function duracionCorta(segundos: number): string {
+  const s = Math.round(segundos);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** "24/10" */
+export function diaMes(d: Date | string): string {
+  const [, mm, dd] = diaArgentina(d).split("-");
+  return `${dd}/${mm}`;
+}

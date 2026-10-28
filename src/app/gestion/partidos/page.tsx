@@ -7,6 +7,7 @@ import { fechaCorta } from "@/lib/formato";
 import { puede } from "@/dominio/permisos";
 import { TORNEO } from "@/dominio/tipos";
 import { partidosParaGestion } from "@/servicios/consultas";
+import { avisosDeSeguridad } from "@/servicios/gestion-usuarios";
 import { usuarioDePagina } from "@/servicios/usuarios";
 import { BotonReabrir } from "./BotonReabrir";
 
@@ -24,6 +25,7 @@ export default async function PartidosGestion() {
   const actor = await usuarioDePagina("cargar_eventos");
   const partidos = await partidosParaGestion();
   const validador = puede(actor, "validar_eventos");
+  const avisos = puede(actor, "gestionar_usuarios") ? await avisosDeSeguridad() : null;
 
   const enCurso = partidos.filter((p) => p.estado === "EN_CURSO");
   const programados = partidos.filter((p) => p.estado === "PROGRAMADO");
@@ -53,6 +55,12 @@ export default async function PartidosGestion() {
       <Encabezado titulo="Partidos" subtitulo={`${TORNEO} · ${actor.nombre}`} />
       <AutoRefresco segundos={10} />
       <div className="space-y-7 px-4 py-6">
+        {avisos?.repetidos ? (
+          <Link href="/gestion/usuarios" role="alert" className="block rounded-2xl border border-roja-borde bg-roja-fondo p-4 text-sm text-roja-texto">
+            <strong>Aviso de seguridad:</strong> hoy hubo {avisos.hoy.length} bloqueos de dispositivos por PIN incorrecto. Tocá para
+            revisarlos.
+          </Link>
+        ) : null}
         {enCurso.length > 0 ? (
           <section className="space-y-3">
             <TituloSeccion>En vivo</TituloSeccion>
