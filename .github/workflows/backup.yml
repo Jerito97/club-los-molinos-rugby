@@ -1,0 +1,51 @@
+# Copia de seguridad diaria de la base de datos (política de respaldo, Tabla 14).
+#
+# Todos los días a las 3:00 (hora de Argentina, 6:00 UTC) ejecuta pg_dump
+# sobre la base de producción, cifra el archivo con una frase secreta y lo
+# guarda como artefacto del repositorio durante 30 días.
+#
+# Secrets necesarios (Settings → Secrets and variables → Actions):
+#   BACKUP_DATABASE_URL  conexión directa (sin pooler) a la base de Neon
+#   BACKUP_PASSPHRASE    frase para cifrar y descifrar las copias
+#
+# Para restaurar una copia:
+#   gpg --batch --passphrase "<frase>" -d backup-AAAA-MM-DD.dump.gpg > backup.dump
+#   pg_restore --clean --no-owner -d "<DATABASE_URL de destino>" backup.dump
+name: Copia de seguridad diaria
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar el cliente de PostgreSQL 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Volcado y cifrado
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          archivo="backup-$(TZ=America/Argentina/Buenos_Aires date +%F).dump"
+          /usr/lib/postgresql/17/bin/pg_dump --format=custom --no-owner --file="$archivo" "$BACKUP_DATABASE_URL"
+          gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$BACKUP_PASSPHRASE" --output "$archivo.gpg" "$archivo"
+          rm "$archivo"
+          echo "ARCHIVO=$archivo.gpg" >> "$GITHUB_ENV"
+
+      - name: Guardar como artefacto (30 días)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVO }}
+          path: ${{ env.ARCHIVO }}
+          retention-days: 30
+          if-no-files-found: error
