@@ -8,6 +8,7 @@ export function Escudo({ tamano = 40, className = "" }: { tamano?: number; class
       alt="Escudo del Club Los Molinos"
       width={Math.round(tamano * 0.8)}
       height={tamano}
+      style={{ height: tamano, width: "auto" }}
       className={`object-contain ${className}`}
       priority
     />
