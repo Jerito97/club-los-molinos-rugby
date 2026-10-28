@@ -10,8 +10,12 @@ import bcrypt from "bcryptjs";
 import { randomInt } from "node:crypto";
 
 export const LARGO_PIN = 6;
-/** Factor de costo de bcrypt. Cada verificación tarda del orden de 100-200 ms. */
-export const COSTO_BCRYPT = 12;
+/**
+ * Factor de costo de bcrypt (2^10 rondas). Como el ingreso compara el PIN
+ * contra los hashes de todos los usuarios activos, se usa el mínimo que fija
+ * la política de seguridad para que el ingreso siga siendo rápido.
+ */
+export const COSTO_BCRYPT = 10;
 /** Cantidad de PIN anteriores que no se pueden repetir. */
 export const PIN_HISTORIAL = 3;
 
