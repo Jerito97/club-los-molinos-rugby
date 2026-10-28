@@ -1,0 +1,344 @@
+// Club Los Molinos — Gestión y validación de eventos deportivos en tiempo real
+//
+// Modelo de datos. Las tablas y columnas siguen el diagrama de entidad
+// relación (DER) del sistema: rol, usuario, jugador, rival, partido, evento,
+// registro_auditoria y preferencia_notificacion. Los nombres de los campos se
+// mantienen en snake_case, igual que en el DER, para que la base y el código
+// se puedan leer contra el diagrama sin traducciones.
+//
+// Las tablas de soporte (pin_historial, titular_partido, push_suscripcion,
+// intento_login, posicion, notificacion_enviada y visita_marcador) cubren
+// funciones descriptas en el documento: reglas del PIN, minutos jugados,
+// notificaciones push, bloqueo por dispositivo, tabla de posiciones de la
+// URBA y métricas de desempeño.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enumeraciones
+// ---------------------------------------------------------------------------
+
+/// Tipos de evento. Los cuatro últimos son eventos de control del partido
+/// (arranque, entretiempo, segundo tiempo y final): se publican sin pasar por
+/// validación porque no modifican el marcador.
+enum TipoEvento {
+  TRY
+  CONVERSION
+  PENAL
+  DROP
+  TARJETA_AMARILLA
+  TARJETA_ROJA
+  CAMBIO
+  INICIO_PARTIDO
+  ENTRETIEMPO
+  INICIO_SEGUNDO_TIEMPO
+  FINAL_PARTIDO
+}
+
+/// Ciclo de vida de un evento: BORRADOR → VALIDADO → PUBLICADO, o
+/// BORRADOR → RECHAZADO → (corrección) → BORRADOR.
+enum EstadoEvento {
+  BORRADOR
+  VALIDADO
+  PUBLICADO
+  RECHAZADO
+}
+
+enum EstadoPartido {
+  PROGRAMADO
+  EN_CURSO
+  FINALIZADO
+}
+
+enum Condicion {
+  LOCAL
+  VISITANTE
+}
+
+enum Equipo {
+  CLUB
+  RIVAL
+}
+
+// ---------------------------------------------------------------------------
+// Usuarios y roles
+// ---------------------------------------------------------------------------
+
+/// Roles del sistema: Cargador (colaborador), Validador (dirigente) y
+/// Espectador.
+model Rol {
+  id_rol   Int       @id @default(autoincrement())
+  nombre   String    @unique
+  usuarios Usuario[]
+
+  @@map("rol")
+}
+
+model Usuario {
+  id_usuario               Int      @id @default(autoincrement())
+  nombre                   String
+  /// Hash bcrypt del PIN. Es nulo para los espectadores, que no inician sesión.
+  pin_hash                 String?
+  id_rol                   Int
+  /// Baja lógica: un usuario inactivo no puede ingresar, pero se conservan sus registros.
+  activo                   Boolean  @default(true)
+  es_responsable_seguridad Boolean  @default(false)
+  /// Si es verdadero, el PIN fue generado por el sistema y se exige cambiarlo en el próximo ingreso.
+  pin_provisorio           Boolean  @default(false)
+  /// Solo para espectadores: identificador del dispositivo (cookie) que activó las notificaciones.
+  id_dispositivo           String?  @unique
+  creado_en                DateTime @default(now())
+
+  rol                  Rol                       @relation(fields: [id_rol], references: [id_rol])
+  pin_historial        PinHistorial[]
+  eventos_cargados     Evento[]                  @relation("EventoCarga")
+  eventos_validados    Evento[]                  @relation("EventoValida")
+  partidos_a_cargo     Partido[]                 @relation("PartidoCargador")
+  registros_auditoria  RegistroAuditoria[]
+  preferencias         PreferenciaNotificacion[]
+  suscripciones_push   PushSuscripcion[]
+  notificaciones       NotificacionEnviada[]
+
+  @@map("usuario")
+}
+
+/// Últimos PIN de cada usuario, para impedir que repita alguno de los tres últimos.
+model PinHistorial {
+  id         Int      @id @default(autoincrement())
+  id_usuario Int
+  pin_hash   String
+  fecha      DateTime @default(now())
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@index([id_usuario, fecha])
+  @@map("pin_historial")
+}
+
+// ---------------------------------------------------------------------------
+// Plantel, rivales y partidos
+// ---------------------------------------------------------------------------
+
+model Jugador {
+  id_jugador   Int    @id @default(autoincrement())
+  nombre       String
+  nro_camiseta Int
+
+  eventos           Evento[]         @relation("EventoJugador")
+  eventos_entrada   Evento[]         @relation("EventoJugadorEntra")
+  titularidades     TitularPartido[]
+
+  @@map("jugador")
+}
+
+model Rival {
+  id_rival       Int       @id @default(autoincrement())
+  nombre         String    @unique
+  posicion_tabla Int?
+
+  partidos Partido[]
+
+  @@map("rival")
+}
+
+model Partido {
+  id_partido          Int           @id @default(autoincrement())
+  /// Fecha y hora de comienzo programada.
+  fecha               DateTime
+  torneo              String
+  id_rival            Int
+  estado              EstadoPartido @default(PROGRAMADO)
+  /// Cargador asignado: el colaborador que inició la carga en vivo.
+  id_usuario_cargador Int?
+  condicion           Condicion
+  /// Resultado desde el punto de vista del club, con formato "club-rival" (ej. "22-17").
+  resultado           String?
+  /// Número de fecha dentro del torneo.
+  fecha_numero        Int
+  temporada           Int
+  /// Momento del arranque del partido (evento INICIO_PARTIDO). Base del reloj y del minuto sugerido.
+  iniciado_en         DateTime?
+
+  rival      Rival            @relation(fields: [id_rival], references: [id_rival])
+  cargador   Usuario?         @relation("PartidoCargador", fields: [id_usuario_cargador], references: [id_usuario])
+  eventos    Evento[]
+  titulares  TitularPartido[]
+  visitas    VisitaMarcador[]
+
+  @@unique([torneo, temporada, fecha_numero])
+  @@map("partido")
+}
+
+/// Jugadores del club que arrancan el partido. Junto con los cambios
+/// publicados permite calcular los minutos y los partidos jugados.
+model TitularPartido {
+  id_partido Int
+  id_jugador Int
+
+  partido Partido @relation(fields: [id_partido], references: [id_partido], onDelete: Cascade)
+  jugador Jugador @relation(fields: [id_jugador], references: [id_jugador])
+
+  @@id([id_partido, id_jugador])
+  @@map("titular_partido")
+}
+
+// ---------------------------------------------------------------------------
+// Eventos y auditoría
+// ---------------------------------------------------------------------------
+
+model Evento {
+  id_evento         Int          @id @default(autoincrement())
+  tipo              TipoEvento
+  minuto            Int
+  estado            EstadoEvento @default(BORRADOR)
+  id_partido        Int
+  equipo            Equipo
+  /// Jugador del club involucrado. Nulo en los eventos del rival y en los de control.
+  /// En un cambio, es el jugador que sale.
+  id_jugador        Int?
+  /// En un cambio, el jugador que entra.
+  id_jugador_entra  Int?
+  id_usuario_carga  Int
+  id_usuario_valida Int?
+  creado_en         DateTime     @default(now())
+  /// Momento de la validación (y publicación, que ocurre en la misma transacción).
+  validado_en       DateTime?
+
+  partido        Partido               @relation(fields: [id_partido], references: [id_partido])
+  jugador        Jugador?              @relation("EventoJugador", fields: [id_jugador], references: [id_jugador])
+  jugador_entra  Jugador?              @relation("EventoJugadorEntra", fields: [id_jugador_entra], references: [id_jugador])
+  usuario_carga  Usuario               @relation("EventoCarga", fields: [id_usuario_carga], references: [id_usuario])
+  usuario_valida Usuario?              @relation("EventoValida", fields: [id_usuario_valida], references: [id_usuario])
+  auditoria      RegistroAuditoria[]
+  notificaciones NotificacionEnviada[]
+
+  @@index([id_partido, estado])
+  @@map("evento")
+}
+
+/// Registro de auditoría. Es de solo inserción: la aplicación nunca lo
+/// modifica ni lo borra.
+model RegistroAuditoria {
+  id_registro    Int      @id @default(autoincrement())
+  /// Nulo en las acciones que no son sobre un evento (ingreso, cambio de PIN, reasignación…).
+  id_evento      Int?
+  /// Nulo en los intentos de ingreso fallidos, donde no se sabe quién intentó.
+  id_usuario     Int?
+  fecha_hora     DateTime @default(now())
+  accion         String
+  valor_anterior Json?
+  valor_nuevo    Json?
+  ip             String?
+  id_dispositivo String?
+
+  evento  Evento?  @relation(fields: [id_evento], references: [id_evento], onDelete: SetNull)
+  usuario Usuario? @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@index([fecha_hora])
+  @@index([accion, fecha_hora])
+  @@map("registro_auditoria")
+}
+
+// ---------------------------------------------------------------------------
+// Notificaciones
+// ---------------------------------------------------------------------------
+
+model PreferenciaNotificacion {
+  id_preferencia Int        @id @default(autoincrement())
+  id_usuario     Int
+  tipo_evento    TipoEvento
+  activa         Boolean    @default(true)
+  fecha_hora     DateTime   @default(now()) @updatedAt
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@unique([id_usuario, tipo_evento])
+  @@map("preferencia_notificacion")
+}
+
+/// Suscripción Web Push de un dispositivo (endpoint y claves del navegador).
+model PushSuscripcion {
+  id         Int      @id @default(autoincrement())
+  id_usuario Int
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  creado_en  DateTime @default(now())
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@map("push_suscripcion")
+}
+
+/// Notificaciones efectivamente enviadas (métrica de alcance).
+model NotificacionEnviada {
+  id         Int      @id @default(autoincrement())
+  id_evento  Int
+  id_usuario Int
+  fecha_hora DateTime @default(now())
+
+  evento  Evento  @relation(fields: [id_evento], references: [id_evento], onDelete: Cascade)
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@index([id_evento])
+  @@map("notificacion_enviada")
+}
+
+// ---------------------------------------------------------------------------
+// Seguridad y métricas
+// ---------------------------------------------------------------------------
+
+/// Intentos de ingreso con PIN, para el bloqueo por dispositivo.
+model IntentoLogin {
+  id             Int      @id @default(autoincrement())
+  id_dispositivo String?
+  ip             String
+  fecha_hora     DateTime @default(now())
+  exitoso        Boolean
+
+  @@index([id_dispositivo, fecha_hora])
+  @@index([ip, fecha_hora])
+  @@map("intento_login")
+}
+
+/// Visitas al marcador en vivo. El dispositivo se guarda como hash, sin datos personales.
+model VisitaMarcador {
+  id             Int      @id @default(autoincrement())
+  id_partido     Int
+  id_dispositivo String
+  fecha_hora     DateTime @default(now())
+
+  partido Partido @relation(fields: [id_partido], references: [id_partido], onDelete: Cascade)
+
+  @@index([id_partido])
+  @@map("visita_marcador")
+}
+
+// ---------------------------------------------------------------------------
+// Datos de contexto de la URBA
+// ---------------------------------------------------------------------------
+
+/// Tabla de posiciones del torneo, cargada por el job de actualización desde la URBA.
+model Posicion {
+  id        Int    @id @default(autoincrement())
+  temporada Int
+  torneo    String
+  puesto    Int
+  equipo    String
+  pj        Int
+  pg        Int
+  pe        Int
+  pp        Int
+  dif       Int
+  pts       Int
+
+  @@unique([temporada, torneo, equipo])
+  @@map("posicion")
+}

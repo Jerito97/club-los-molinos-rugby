@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+/* Paleta del club: bordó y crema, con negro para la navegación. */
+:root {
+  --color-bordo: #4a1219;
+  --color-bordo-claro: #6b1d27;
+  --color-crema: #f3eee6;
+  --color-negro: #17140f;
+  --color-nav: #141210;
+  --color-amarilla-fondo: #f6e7ae;
+  --color-amarilla-borde: #e2c04a;
+  --color-amarilla-texto: #7a5b0c;
+  --color-roja-fondo: #f2d6d3;
+  --color-roja-borde: #d8746c;
+  --color-roja-texto: #b3261e;
+}
+
+@theme inline {
+  --color-bordo: var(--color-bordo);
+  --color-bordo-claro: var(--color-bordo-claro);
+  --color-crema: var(--color-crema);
+  --color-negro: var(--color-negro);
+  --color-nav: var(--color-nav);
+  --color-amarilla-fondo: var(--color-amarilla-fondo);
+  --color-amarilla-borde: var(--color-amarilla-borde);
+  --color-amarilla-texto: var(--color-amarilla-texto);
+  --color-roja-fondo: var(--color-roja-fondo);
+  --color-roja-borde: var(--color-roja-borde);
+  --color-roja-texto: var(--color-roja-texto);
+
+  --font-display: var(--font-bebas), "Arial Narrow", sans-serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+}
+
+html {
+  background: var(--color-nav);
+}
+
+body {
+  background-color: var(--color-crema);
+  color: var(--color-negro);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Títulos en mayúscula con la tipografía condensada. */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* Columna de la app: ocupa toda la altura visible, también en iOS instalado. */
+.app-columna {
+  min-height: 100svh;
+  min-height: 100dvh;
+}
+
+/* Encabezado bordó con gradiente, como en las pantallas del documento. */
+.encabezado {
+  background: linear-gradient(180deg, #8f6a6c 0%, #5c1d24 55%, var(--color-bordo) 100%);
+}
+
+::selection {
+  background: var(--color-bordo);
+  color: var(--color-crema);
+}
+
+/* Inputs numéricos sin flechas (campo de minuto). */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

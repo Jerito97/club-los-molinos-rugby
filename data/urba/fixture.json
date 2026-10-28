@@ -1,0 +1,237 @@
+{
+  "temporada": 2026,
+  "torneo": "Primera C - Superior",
+  "partidos": [
+    {
+      "fecha_numero": 1,
+      "fecha": "2026-04-25T18:30:00.000Z",
+      "rival": "Monte Grande",
+      "condicion": "LOCAL",
+      "resultado": {
+        "club": 31,
+        "rival": 10
+      }
+    },
+    {
+      "fecha_numero": 2,
+      "fecha": "2026-05-02T18:30:00.000Z",
+      "rival": "Daom",
+      "condicion": "VISITANTE",
+      "resultado": {
+        "club": 27,
+        "rival": 19
+      }
+    },
+    {
+      "fecha_numero": 3,
+      "fecha": "2026-05-09T18:30:00.000Z",
+      "rival": "San Carlos",
+      "condicion": "LOCAL",
+      "resultado": {
+        "club": 12,
+        "rival": 30
+      }
+    },
+    {
+      "fecha_numero": 4,
+      "fecha": "2026-05-16T18:30:00.000Z",
+      "rival": "Virreyes",
+      "condicion": "VISITANTE",
+      "resultado": {
+        "club": 24,
+        "rival": 24
+      }
+    },
+    {
+      "fecha_numero": 5,
+      "fecha": "2026-05-23T18:30:00.000Z",
+      "rival": "Lanús",
+      "condicion": "LOCAL",
+      "resultado": {
+        "club": 15,
+        "rival": 21
+      }
+    },
+    {
+      "fecha_numero": 7,
+      "fecha": "2026-06-06T18:30:00.000Z",
+      "rival": "St. Brendan's",
+      "condicion": "VISITANTE",
+      "resultado": {
+        "club": 45,
+        "rival": 7
+      }
+    },
+    {
+      "fecha_numero": 8,
+      "fecha": "2026-06-13T18:30:00.000Z",
+      "rival": "SITAS",
+      "condicion": "LOCAL",
+      "resultado": {
+        "club": 17,
+        "rival": 33
+      }
+    },
+    {
+      "fecha_numero": 9,
+      "fecha": "2026-06-20T18:30:00.000Z",
+      "rival": "Luján",
+      "condicion": "VISITANTE",
+      "resultado": {
+        "club": 26,
+        "rival": 20
+      }
+    },
+    {
+      "fecha_numero": 10,
+      "fecha": "2026-06-27T18:30:00.000Z",
+      "rival": "Ciudad de Buenos Aires",
+      "condicion": "LOCAL",
+      "resultado": {
+        "club": 19,
+        "rival": 18
+      }
+    },
+    {
+      "fecha_numero": 11,
+      "fecha": "2026-08-01T18:30:00.000Z",
+      "rival": "San Miguel",
+      "condicion": "VISITANTE",
+      "resultado": {
+        "club": 35,
+        "rival": 12
+      }
+    },
+    {
+      "fecha_numero": 12,
+      "fecha": "2026-08-08T18:30:00.000Z",
+      "rival": "Del Sur",
+      "condicion": "LOCAL",
+      "resultado": {
+        "club": 21,
+        "rival": 23
+      }
+    },
+    {
+      "fecha_numero": 13,
+      "fecha": "2026-08-15T18:30:00.000Z",
+      "rival": "Ezeiza",
+      "condicion": "VISITANTE",
+      "resultado": {
+        "club": 40,
+        "rival": 15
+      }
+    },
+    {
+      "fecha_numero": 14,
+      "fecha": "2026-08-22T18:30:00.000Z",
+      "rival": "Monte Grande",
+      "condicion": "VISITANTE",
+      "resultado": {
+        "club": 29,
+        "rival": 17
+      }
+    },
+    {
+      "fecha_numero": 16,
+      "fecha": "2026-09-05T18:30:00.000Z",
+      "rival": "Daom",
+      "condicion": "LOCAL",
+      "resultado": {
+        "club": 54,
+        "rival": 34
+      }
+    },
+    {
+      "fecha_numero": 17,
+      "fecha": "2026-09-12T18:30:00.000Z",
+      "rival": "San Carlos",
+      "condicion": "VISITANTE",
+      "resultado": {
+        "club": 14,
+        "rival": 14
+      }
+    },
+    {
+      "fecha_numero": 18,
+      "fecha": "2026-09-19T18:30:00.000Z",
+      "rival": "Virreyes",
+      "condicion": "LOCAL",
+      "resultado": {
+        "club": 14,
+        "rival": 16
+      }
+    },
+    {
+      "fecha_numero": 19,
+      "fecha": "2026-09-26T18:30:00.000Z",
+      "rival": "Lanús",
+      "condicion": "VISITANTE",
+      "resultado": {
+        "club": 22,
+        "rival": 17
+      }
+    },
+    {
+      "fecha_numero": 20,
+      "fecha": "2026-10-03T18:30:00.000Z",
+      "rival": "St. Brendan's",
+      "condicion": "LOCAL",
+      "resultado": {
+        "club": 49,
+        "rival": 11
+      }
+    },
+    {
+      "fecha_numero": 21,
+      "fecha": "2026-10-10T18:30:00.000Z",
+      "rival": "SITAS",
+      "condicion": "VISITANTE",
+      "resultado": {
+        "club": 20,
+        "rival": 27
+      }
+    },
+    {
+      "fecha_numero": 22,
+      "fecha": "2026-10-17T18:30:00.000Z",
+      "rival": "Luján",
+      "condicion": "LOCAL",
+      "resultado": {
+        "club": 31,
+        "rival": 24
+      }
+    },
+    {
+      "fecha_numero": 23,
+      "fecha": "2026-10-24T18:30:00.000Z",
+      "rival": "Ciudad de Buenos Aires",
+      "condicion": "VISITANTE",
+      "resultado": {
+        "club": 28,
+        "rival": 13
+      }
+    },
+    {
+      "fecha_numero": 24,
+      "fecha": "2026-10-31T18:30:00.000Z",
+      "rival": "San Miguel",
+      "condicion": "LOCAL",
+      "resultado": null
+    },
+    {
+      "fecha_numero": 25,
+      "fecha": "2026-11-07T18:30:00.000Z",
+      "rival": "Del Sur",
+      "condicion": "VISITANTE",
+      "resultado": null
+    },
+    {
+      "fecha_numero": 26,
+      "fecha": "2026-11-14T18:30:00.000Z",
+      "rival": "Ezeiza",
+      "condicion": "LOCAL",
+      "resultado": null
+    }
+  ]
+}
