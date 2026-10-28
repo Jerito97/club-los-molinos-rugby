@@ -213,3 +213,50 @@ export function habilitadosParaCargar() {
     orderBy: { nombre: "asc" },
   });
 }
+
+/** Partido resumido para las listas públicas. */
+function resumen(p: {
+  id_partido: number;
+  fecha: Date;
+  fecha_numero: number;
+  estado: EstadoPartido;
+  condicion: Condicion;
+  resultado: string | null;
+  rival: { nombre: string };
+}) {
+  return {
+    id_partido: p.id_partido,
+    fecha: p.fecha.toISOString(),
+    fecha_numero: p.fecha_numero,
+    estado: p.estado,
+    condicion: p.condicion,
+    rival: p.rival.nombre,
+    ...equipos(p.rival.nombre, p.condicion),
+    resultado: leerResultado(p.resultado),
+  };
+}
+export type ResumenPartido = ReturnType<typeof resumen>;
+
+/** Todos los partidos de la temporada, para las pantallas del espectador. */
+export async function partidosPublicos() {
+  const partidos = await prisma.partido.findMany({ include: { rival: true }, orderBy: { fecha: "asc" } });
+  return partidos.map(resumen);
+}
+
+/** Tabla de posiciones de la temporada más reciente. */
+export async function posiciones() {
+  const ultima = await prisma.posicion.findFirst({ orderBy: { temporada: "desc" }, select: { temporada: true } });
+  if (!ultima) return [];
+  return prisma.posicion.findMany({ where: { temporada: ultima.temporada }, orderBy: { puesto: "asc" } });
+}
+
+/** Datos de la pantalla de inicio: partido en vivo, último resultado, próximo partido y posiciones. */
+export async function inicio() {
+  const [partidos, tabla] = await Promise.all([partidosPublicos(), posiciones()]);
+  return {
+    enVivo: partidos.filter((p) => p.estado === "EN_CURSO"),
+    ultimo: partidos.filter((p) => p.estado === "FINALIZADO").at(-1) ?? null,
+    proximo: partidos.find((p) => p.estado === "PROGRAMADO") ?? null,
+    posiciones: tabla,
+  };
+}
