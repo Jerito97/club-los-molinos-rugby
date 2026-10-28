@@ -5,11 +5,17 @@
 // un evento en borrador, validado sin publicar o rechazado nunca modifica el
 // marcador que ve el espectador (RF 6, RF 12).
 
+import { ACCION, registrar as registroAuditoria, type RegistroNuevo } from "./auditoria";
+import type { EventoNuevo, PartidoCarga } from "./evento";
+import { puede, type Actor } from "./permisos";
+import { exito, rechazo, type Resultado } from "./resultado";
 import {
   MINUTOS_POR_TIEMPO,
+  TIPOS_CONTROL,
   puntosDe,
   type Equipo,
   type EstadoEvento,
+  type EstadoPartido,
   type TipoEvento,
 } from "./tipos";
 
@@ -150,4 +156,181 @@ export function minutoSugerido(reloj: EstadoReloj, ahora: Date): number {
   if (reloj.tiempo === "ENTRETIEMPO") return MINUTOS_POR_TIEMPO;
   const segundos = segundosDeJuego(reloj, ahora);
   return Math.min(120, Math.max(1, Math.floor(segundos / 60) + 1));
+}
+
+// ---------------------------------------------------------------------------
+// Operaciones de la clase Partido: iniciar, asignarCargador, finalizar
+// ---------------------------------------------------------------------------
+
+export const CANTIDAD_TITULARES = 15;
+
+type CambiosPartido = {
+  estado?: EstadoPartido;
+  id_usuario_cargador?: number;
+  iniciado_en?: Date;
+};
+
+/**
+ * Partido.iniciar(): el colaborador inicia la carga en vivo de un partido
+ * programado, con los quince titulares, y queda asignado como su único
+ * cargador (Partido.asignarCargador(usuario)).
+ */
+export function iniciar(
+  actor: Actor,
+  partido: PartidoCarga,
+  titulares: readonly number[],
+  plantel: ReadonlySet<number>
+): Resultado<{ cambios: CambiosPartido; titulares: number[]; auditoria: RegistroNuevo[] }> {
+  if (!puede(actor, "cargar_eventos")) return rechazo("permiso", "No tenés permiso para cargar partidos.");
+  if (partido.estado === "EN_CURSO") return rechazo("conflicto", "El partido ya está en curso y tiene un cargador asignado.");
+  if (partido.estado !== "PROGRAMADO") return rechazo("conflicto", "El partido ya se jugó. Usá la opción para reabrirlo.");
+  const unicos = [...new Set(titulares)];
+  if (unicos.length !== CANTIDAD_TITULARES || titulares.length !== CANTIDAD_TITULARES) {
+    return rechazo("datos", `Elegí los ${CANTIDAD_TITULARES} titulares.`);
+  }
+  if (unicos.some((id) => !plantel.has(id))) return rechazo("datos", "Hay titulares que no pertenecen al plantel.");
+
+  const id = partido.id_partido;
+  return exito({
+    cambios: { estado: "EN_CURSO", id_usuario_cargador: actor.id_usuario },
+    titulares: unicos,
+    auditoria: [
+      registroAuditoria(actor.id_usuario, ACCION.INICIO_CARGA, { id_partido: id, estado: partido.estado }, { id_partido: id, estado: "EN_CURSO" }),
+      registroAuditoria(
+        actor.id_usuario,
+        ACCION.ASIGNACION_CARGADOR,
+        { id_partido: id, id_usuario_cargador: partido.id_usuario_cargador },
+        { id_partido: id, id_usuario_cargador: actor.id_usuario }
+      ),
+      registroAuditoria(actor.id_usuario, ACCION.TITULARES, null, { id_partido: id, titulares: unicos }),
+    ],
+  });
+}
+
+/**
+ * Reasignación del cargador por parte de un dirigente (por ejemplo, porque
+ * al colaborador se le terminó la batería). Queda en la auditoría.
+ */
+export function reasignarCargador(
+  actor: Actor,
+  partido: PartidoCarga,
+  nuevo: Actor
+): Resultado<{ cambios: CambiosPartido; auditoria: RegistroNuevo[] }> {
+  if (!puede(actor, "reasignar_cargador")) return rechazo("permiso", "Solo un dirigente puede reasignar la carga.");
+  if (partido.estado !== "EN_CURSO") return rechazo("conflicto", "Solo se reasigna la carga de un partido en curso.");
+  if (!puede(nuevo, "cargar_eventos")) return rechazo("datos", "La persona elegida no puede cargar eventos.");
+  if (partido.id_usuario_cargador === nuevo.id_usuario) return rechazo("datos", "Esa persona ya es la cargadora del partido.");
+  const id = partido.id_partido;
+  return exito({
+    cambios: { id_usuario_cargador: nuevo.id_usuario },
+    auditoria: [
+      registroAuditoria(
+        actor.id_usuario,
+        ACCION.REASIGNACION_CARGADOR,
+        { id_partido: id, id_usuario_cargador: partido.id_usuario_cargador },
+        { id_partido: id, id_usuario_cargador: nuevo.id_usuario }
+      ),
+    ],
+  });
+}
+
+/** Evento de control que corresponde cargar a continuación, o null si ya se cargaron todos. */
+export function proximoControl(publicados: ReadonlySet<TipoEvento>): TipoEvento | null {
+  return TIPOS_CONTROL.find((t) => !publicados.has(t)) ?? null;
+}
+
+/**
+ * Registra un evento de control (arranque, entretiempo, segundo tiempo o
+ * final). No suma puntos: se publica en el momento, sin validación, para que
+ * el reloj y el tiempo de juego queden al día. El arranque fija `iniciado_en`
+ * y el final ejecuta Partido.finalizar().
+ */
+export function registrarControl(
+  actor: Actor,
+  partido: PartidoCarga,
+  tipo: TipoEvento,
+  publicados: ReadonlySet<TipoEvento>,
+  ahora: Date,
+  minuto: number,
+  marcador: Marcador
+): Resultado<{ evento: EventoNuevo; cambios: CambiosPartido; auditoria: RegistroNuevo[] }> {
+  if (!puede(actor, "cargar_eventos")) return rechazo("permiso", "No tenés permiso para cargar eventos.");
+  if (partido.estado !== "EN_CURSO") return rechazo("conflicto", "El partido no está en curso.");
+  if (partido.id_usuario_cargador !== actor.id_usuario) {
+    return rechazo("permiso", "Este partido tiene otro cargador asignado. Solo esa persona puede cargar eventos.");
+  }
+  if (!TIPOS_CONTROL.includes(tipo)) return rechazo("datos", "No es un evento de control.");
+  if (proximoControl(publicados) !== tipo) return rechazo("conflicto", "Ese momento del partido no corresponde ahora.");
+
+  const minutoControl =
+    tipo === "INICIO_PARTIDO" ? 0 : tipo === "FINAL_PARTIDO" ? Math.max(minuto, 2 * MINUTOS_POR_TIEMPO) : MINUTOS_POR_TIEMPO;
+  const id = partido.id_partido;
+  const datos = { tipo, minuto: minutoControl, equipo: "CLUB" as const, id_jugador: null, id_jugador_entra: null };
+  const cambios: CambiosPartido = {};
+  const auditoria: RegistroNuevo[] = [];
+  if (tipo === "INICIO_PARTIDO") cambios.iniciado_en = ahora;
+  if (tipo === "FINAL_PARTIDO") {
+    const fin = finalizar(actor, partido, marcador);
+    Object.assign(cambios, fin.cambios);
+    auditoria.push(...fin.auditoria);
+  }
+  return exito({
+    evento: {
+      ...datos,
+      estado: "PUBLICADO",
+      auditoria: [registroAuditoria(actor.id_usuario, ACCION.PUBLICACION, null, { id_partido: id, ...datos, estado: "PUBLICADO" })],
+    },
+    cambios,
+    auditoria,
+  });
+}
+
+/** Partido.finalizar(): cierra la carga y deja el partido como jugado. */
+export function finalizar(
+  actor: Actor,
+  partido: PartidoCarga,
+  marcador: Marcador
+): { cambios: CambiosPartido & { estado: "FINALIZADO" }; resultado: string; auditoria: RegistroNuevo[] } {
+  const resultado = formatearResultado(marcador);
+  return {
+    cambios: { estado: "FINALIZADO" },
+    resultado,
+    auditoria: [
+      registroAuditoria(
+        actor.id_usuario,
+        ACCION.FINALIZACION,
+        { id_partido: partido.id_partido, estado: partido.estado },
+        { id_partido: partido.id_partido, estado: "FINALIZADO", resultado }
+      ),
+    ],
+  };
+}
+
+/**
+ * Reabre un partido jugado para revisar o completar sus eventos (por
+ * ejemplo, cargar lo anotado en papel si no hubo señal en la cancha). Puede
+ * hacerlo un dirigente o quien fue su cargador; queda asignado como cargador.
+ */
+export function reabrir(actor: Actor, partido: PartidoCarga): Resultado<{ cambios: CambiosPartido; auditoria: RegistroNuevo[] }> {
+  if (!puede(actor, "cargar_eventos")) return rechazo("permiso", "No tenés permiso para cargar partidos.");
+  if (partido.estado !== "FINALIZADO") return rechazo("conflicto", "Solo se reabren partidos ya jugados.");
+  const esCargador = partido.id_usuario_cargador === actor.id_usuario || partido.id_usuario_cargador === null;
+  if (!esCargador && !puede(actor, "reasignar_cargador")) {
+    return rechazo("permiso", "Solo un dirigente o quien cargó el partido puede reabrirlo.");
+  }
+  const id = partido.id_partido;
+  const auditoria = [
+    registroAuditoria(actor.id_usuario, ACCION.REAPERTURA, { id_partido: id, estado: "FINALIZADO" }, { id_partido: id, estado: "EN_CURSO" }),
+  ];
+  if (partido.id_usuario_cargador !== actor.id_usuario) {
+    auditoria.push(
+      registroAuditoria(
+        actor.id_usuario,
+        ACCION.ASIGNACION_CARGADOR,
+        { id_partido: id, id_usuario_cargador: partido.id_usuario_cargador },
+        { id_partido: id, id_usuario_cargador: actor.id_usuario }
+      )
+    );
+  }
+  return exito({ cambios: { estado: "EN_CURSO", id_usuario_cargador: actor.id_usuario }, auditoria });
 }

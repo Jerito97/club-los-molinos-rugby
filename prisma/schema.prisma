@@ -210,6 +210,9 @@ model Evento {
   creado_en         DateTime     @default(now())
   /// Momento de la validación (y publicación, que ocurre en la misma transacción).
   validado_en       DateTime?
+  /// Eliminación lógica de un borrador: el evento deja de mostrarse, pero se
+  /// conserva para no perder el vínculo con su registro de auditoría.
+  eliminado_en      DateTime?
 
   partido        Partido               @relation(fields: [id_partido], references: [id_partido])
   jugador        Jugador?              @relation("EventoJugador", fields: [id_jugador], references: [id_jugador])
@@ -238,7 +241,7 @@ model RegistroAuditoria {
   ip             String?
   id_dispositivo String?
 
-  evento  Evento?  @relation(fields: [id_evento], references: [id_evento], onDelete: SetNull)
+  evento  Evento?  @relation(fields: [id_evento], references: [id_evento])
   usuario Usuario? @relation(fields: [id_usuario], references: [id_usuario])
 
   @@index([fecha_hora])
